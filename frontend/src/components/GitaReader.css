@@ -1,0 +1,444 @@
+.gita-reader-page {
+  min-height: 100vh;
+  padding: 2rem 1rem;
+  background: linear-gradient(135deg, #E0F2FE 0%, #BAE6FD 50%, #DBEAFE 100%);
+  transition: background 0.3s ease;
+}
+
+body.dark-mode .gita-reader-page {
+  background: linear-gradient(135deg, #0F172A 0%, #1E293B 50%, #0F172A 100%);
+}
+
+.reader-container {
+  max-width: 1600px;
+  margin: 0 auto;
+}
+
+.reader-layout {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  gap: 2rem;
+  margin-top: 2rem;
+}
+
+/* Chapter Sidebar */
+.chapters-sidebar {
+  position: sticky;
+  top: 100px;
+  height: calc(100vh - 120px);
+  overflow-y: auto;
+  padding-right: 1rem;
+}
+
+.sidebar-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+  color: #1E293B;
+}
+
+body.dark-mode .sidebar-title {
+  color: #E2E8F0;
+}
+
+.chapters-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.chapter-item {
+  background: white;
+  border: 2px solid #E0F2FE;
+  border-radius: 12px;
+  padding: 1rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  animation: fadeIn 0.5s ease;
+}
+
+body.dark-mode .chapter-item {
+  background: #1E293B;
+  border-color: #334155;
+  color: #E2E8F0;
+}
+
+.chapter-item:hover {
+  transform: translateX(5px);
+  border-color: #14B8A6;
+  box-shadow: 0 4px 12px rgba(20, 184, 166, 0.2);
+}
+
+.chapter-item.active {
+  background: linear-gradient(135deg, #14B8A6 0%, #0D9488 100%);
+  border-color: #14B8A6;
+  color: white;
+  box-shadow: 0 4px 16px rgba(20, 184, 166, 0.3);
+}
+
+.chapter-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.chapter-number {
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+.chapter-progress {
+  font-size: 0.875rem;
+  opacity: 0.8;
+}
+
+.chapter-name {
+  font-size: 0.875rem;
+  opacity: 0.9;
+  margin-bottom: 0.5rem;
+  line-height: 1.4;
+}
+
+.progress-bar {
+  height: 4px;
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.chapter-item.active .progress-bar {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.progress-fill {
+  height: 100%;
+  background: #14B8A6;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.chapter-item.active .progress-fill {
+  background: white;
+}
+
+/* Reader Main */
+.reader-main {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.chapter-header {
+  background: white;
+  border: 2px solid #E0F2FE;
+  border-radius: 16px;
+  padding: 2rem;
+  animation: slideInDown 0.5s ease;
+}
+
+body.dark-mode .chapter-header {
+  background: #1E293B;
+  border-color: #334155;
+  color: #E2E8F0;
+}
+
+.chapter-title {
+  font-size: 1.75rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+  color: #1E293B;
+}
+
+body.dark-mode .chapter-title {
+  color: #E2E8F0;
+}
+
+.chapter-meta {
+  display: flex;
+  gap: 1rem;
+  color: #64748B;
+  font-size: 0.95rem;
+}
+
+body.dark-mode .chapter-meta {
+  color: #94A3B8;
+}
+
+/* Verses List */
+.verses-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.verse-item {
+  background: white;
+  border: 2px solid #E0F2FE;
+  border-radius: 12px;
+  padding: 1.25rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  animation: slideInUp 0.5s ease;
+}
+
+body.dark-mode .verse-item {
+  background: #1E293B;
+  border-color: #334155;
+  color: #E2E8F0;
+}
+
+.verse-item:hover {
+  transform: translateY(-4px);
+  border-color: #14B8A6;
+  box-shadow: 0 6px 20px rgba(20, 184, 166, 0.2);
+}
+
+.verse-item.selected {
+  background: linear-gradient(135deg, #14B8A6 0%, #0D9488 100%);
+  border-color: #14B8A6;
+  color: white;
+  box-shadow: 0 6px 24px rgba(20, 184, 166, 0.3);
+}
+
+.verse-item.completed {
+  border-left: 4px solid #10B981;
+}
+
+.verse-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.verse-number {
+  font-weight: 600;
+  font-size: 1.1rem;
+}
+
+.completed-badge {
+  background: rgba(16, 185, 129, 0.2);
+  color: #10B981;
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.verse-item.selected .completed-badge {
+  background: rgba(255, 255, 255, 0.3);
+  color: white;
+}
+
+.verse-preview {
+  font-size: 0.9rem;
+  opacity: 0.8;
+  line-height: 1.5;
+}
+
+/* Verse Detail */
+.verse-detail {
+  background: white;
+  border: 2px solid #E0F2FE;
+  border-radius: 16px;
+  padding: 2rem;
+  animation: fadeIn 0.5s ease;
+}
+
+body.dark-mode .verse-detail {
+  background: #1E293B;
+  border-color: #334155;
+  color: #E2E8F0;
+}
+
+.verse-detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+  padding-bottom: 1rem;
+  border-bottom: 2px solid #E0F2FE;
+}
+
+body.dark-mode .verse-detail-header {
+  border-bottom-color: #334155;
+}
+
+.verse-detail-header h3 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #1E293B;
+}
+
+body.dark-mode .verse-detail-header h3 {
+  color: #E2E8F0;
+}
+
+.mark-read-btn {
+  background: linear-gradient(135deg, #14B8A6 0%, #0D9488 100%);
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.mark-read-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(20, 184, 166, 0.3);
+}
+
+.verse-section {
+  margin-bottom: 2rem;
+}
+
+.verse-section:last-child {
+  margin-bottom: 0;
+}
+
+.verse-label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #14B8A6;
+  margin-bottom: 0.75rem;
+}
+
+.verse-text {
+  font-size: 1.25rem;
+  line-height: 1.8;
+  color: #1E293B;
+  font-family: 'Noto Sans Devanagari', sans-serif;
+}
+
+body.dark-mode .verse-text {
+  color: #E2E8F0;
+}
+
+.verse-content {
+  font-size: 1.05rem;
+  line-height: 1.7;
+  color: #475569;
+}
+
+body.dark-mode .verse-content {
+  color: #CBD5E1;
+}
+
+.krishna-section {
+  background: linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%);
+  padding: 1.5rem;
+  border-radius: 12px;
+  border-left: 4px solid #F59E0B;
+}
+
+body.dark-mode .krishna-section {
+  background: linear-gradient(135deg, #78350F 0%, #92400E 100%);
+  border-left-color: #F59E0B;
+}
+
+/* Welcome Card */
+.welcome-card {
+  text-align: center;
+  padding: 4rem 2rem;
+}
+
+.welcome-content {
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.welcome-icon {
+  font-size: 4rem;
+  margin-bottom: 1.5rem;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.welcome-card h2 {
+  font-size: 2rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+  color: #1E293B;
+}
+
+body.dark-mode .welcome-card h2 {
+  color: #E2E8F0;
+}
+
+.welcome-card p {
+  font-size: 1.1rem;
+  color: #64748B;
+  margin-bottom: 0.5rem;
+}
+
+body.dark-mode .welcome-card p {
+  color: #94A3B8;
+}
+
+.welcome-stats {
+  font-weight: 600;
+  color: #14B8A6;
+  margin-top: 1rem;
+}
+
+/* Animations */
+@keyframes slideInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+  .reader-layout {
+    grid-template-columns: 250px 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .reader-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .chapters-sidebar {
+    position: static;
+    height: auto;
+    max-height: 400px;
+    margin-bottom: 2rem;
+  }
+
+  .verses-list {
+    grid-template-columns: 1fr;
+  }
+}
+
