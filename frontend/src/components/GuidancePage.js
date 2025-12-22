@@ -4,7 +4,7 @@ import axios from 'axios';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { useNotification } from '../contexts/NotificationContext';
 import './GuidancePage.css';
-import KrishnaChat from './KrishnaChat';
+// import KrishnaChat from './KrishnaChat'; // Commented out - Chatbot disabled to avoid OpenAI API costs
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
@@ -29,7 +29,7 @@ function GuidancePage() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [saving, setSaving] = useState(false);
-  const [chatbotEnabled, setChatbotEnabled] = useState(false);
+  // const [chatbotEnabled, setChatbotEnabled] = useState(false); // Commented out - Chatbot disabled to avoid OpenAI API costs
 
   // Handle navigation from Saved Verses page
   useEffect(() => {
@@ -188,7 +188,8 @@ function GuidancePage() {
                 rows={8}
               />
               
-              <div className="input-controls">
+              {/* Chatbot toggle commented out - Chatbot disabled to avoid OpenAI API costs */}
+              {/* <div className="input-controls">
                 <div className="chatbot-toggle-inline">
                   <label className="toggle-label">
                     <input
@@ -200,7 +201,7 @@ function GuidancePage() {
                     <span className="toggle-text">Enable Chatbot</span>
                   </label>
                 </div>
-              </div>
+              </div> */}
               
               <button 
                 type="submit" 
@@ -399,8 +400,8 @@ function GuidancePage() {
                 )}
               </div>
 
-              {/* Chatbot - Only show if enabled and result exists */}
-              {chatbotEnabled && result && (
+              {/* Chatbot - Commented out to avoid OpenAI API costs */}
+              {/* {chatbotEnabled && result && (
                 <div className="dashboard-card chatbot-panel fade-in">
                   <KrishnaChat 
                     guidanceContext={{
@@ -417,7 +418,7 @@ function GuidancePage() {
                     }}
                   />
                 </div>
-              )}
+              )} */}
             </>
           )}
         </div>
@@ -509,7 +510,7 @@ function GuidancePage() {
                       className="ai-action-btn reset-action"
                       onClick={() => {
                         setResult(null);
-                        setChatbotEnabled(false);
+                        // setChatbotEnabled(false); // Commented out - Chatbot disabled
                         // Keep input, don't clear it
                       }}
                     >

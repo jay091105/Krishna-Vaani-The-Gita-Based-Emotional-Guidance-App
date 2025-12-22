@@ -644,54 +644,55 @@ def get_emotion_stats():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@app.route('/api/krishna-chat', methods=['POST'])
-def krishna_chat():
-    """Krishna chatbot endpoint - responds as Krishna using Gita context"""
-    try:
-        data = request.json
-        user_message = data.get('message', '')
-        context = data.get('context', {})  # Should contain chapter, verse, emotion, what_happened, krishna_vaani
-        
-        if not user_message:
-            return jsonify({"error": "Message is required"}), 400
-        
-        # Extract context
-        chapter = context.get('chapter', 'Unknown')
-        verse = context.get('verse', 'Unknown')
-        emotion = context.get('emotion', 'Unknown')
-        what_happened = context.get('what_happened', '')
-        krishna_vaani = context.get('krishna_vaani', '')
-        verse_text = context.get('verse_text', '')
-        verse_meaning = context.get('verse_meaning', '')
-        guidance = context.get('guidance', '')
-        
-        # Generate Krishna's response following the format
-        krishna_response = generate_krishna_chat_response(
-            user_message, chapter, verse, emotion, what_happened, 
-            krishna_vaani, verse_text, verse_meaning, guidance
-        )
-        
-        # Save chat history
-        storage = load_storage()
-        if 'chat_history' not in storage:
-            storage['chat_history'] = []
-        
-        chat_entry = {
-            "timestamp": datetime.now().isoformat(),
-            "user_message": user_message,
-            "krishna_response": krishna_response,
-            "context": context
-        }
-        storage['chat_history'].append(chat_entry)
-        save_storage(storage)
-        
-        return jsonify({
-            "response": krishna_response,
-            "timestamp": chat_entry["timestamp"]
-        })
-    
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+# Chatbot endpoint commented out to avoid OpenAI API costs
+# @app.route('/api/krishna-chat', methods=['POST'])
+# def krishna_chat():
+#     """Krishna chatbot endpoint - responds as Krishna using Gita context"""
+#     try:
+#         data = request.json
+#         user_message = data.get('message', '')
+#         context = data.get('context', {})  # Should contain chapter, verse, emotion, what_happened, krishna_vaani
+#         
+#         if not user_message:
+#             return jsonify({"error": "Message is required"}), 400
+#         
+#         # Extract context
+#         chapter = context.get('chapter', 'Unknown')
+#         verse = context.get('verse', 'Unknown')
+#         emotion = context.get('emotion', 'Unknown')
+#         what_happened = context.get('what_happened', '')
+#         krishna_vaani = context.get('krishna_vaani', '')
+#         verse_text = context.get('verse_text', '')
+#         verse_meaning = context.get('verse_meaning', '')
+#         guidance = context.get('guidance', '')
+#         
+#         # Generate Krishna's response following the format
+#         krishna_response = generate_krishna_chat_response(
+#             user_message, chapter, verse, emotion, what_happened, 
+#             krishna_vaani, verse_text, verse_meaning, guidance
+#         )
+#         
+#         # Save chat history
+#         storage = load_storage()
+#         if 'chat_history' not in storage:
+#             storage['chat_history'] = []
+#         
+#         chat_entry = {
+#             "timestamp": datetime.now().isoformat(),
+#             "user_message": user_message,
+#             "krishna_response": krishna_response,
+#             "context": context
+#         }
+#         storage['chat_history'].append(chat_entry)
+#         save_storage(storage)
+#         
+#         return jsonify({
+#             "response": krishna_response,
+#             "timestamp": chat_entry["timestamp"]
+#         })
+#     
+#     except Exception as e:
+#         return jsonify({"error": str(e)}), 500
 
 def generate_krishna_chat_response(user_message, chapter, verse, emotion, what_happened, 
                                    krishna_vaani, verse_text, verse_meaning, guidance):
