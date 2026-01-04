@@ -1315,5 +1315,5 @@ def test_model_accuracy():
 
 if __name__ == '__main__':
     init_storage()
-    app.run(debug=True, port=5000)
+    app.run(debug=False, host='0.0.0.0', port=5000)
 
