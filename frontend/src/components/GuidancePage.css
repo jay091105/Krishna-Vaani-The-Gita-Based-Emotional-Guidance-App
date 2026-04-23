@@ -7,10 +7,6 @@
   transition: background 0.3s ease;
 }
 
-body.dark-mode .ai-dashboard-page {
-  background: linear-gradient(135deg, #0F172A 0%, #1E293B 50%, #0F172A 100%);
-}
-
 .dashboard-container {
   max-width: 1600px;
   margin: 0 auto;
@@ -31,19 +27,9 @@ body.dark-mode .ai-dashboard-page {
   animation: slideInUp 0.5s ease;
 }
 
-body.dark-mode .dashboard-card {
-  background: #1E293B;
-  border-color: #334155;
-  color: #E2E8F0;
-}
-
 .dashboard-card:hover {
   box-shadow: 0 4px 16px rgba(14, 165, 233, 0.2);
   transform: translateY(-2px);
-}
-
-body.dark-mode .dashboard-card:hover {
-  box-shadow: 0 4px 16px rgba(20, 184, 166, 0.3);
 }
 
 @keyframes slideInUp {
@@ -672,6 +658,18 @@ body.dark-mode .dashboard-card:hover {
 .reset-action:hover {
   background: #E0F2FE;
   transform: translateY(-1px);
+}
+
+.chat-action {
+  background: linear-gradient(135deg, #14B8A6 0%, #0D9488 100%);
+  color: #FFFFFF;
+  border: none;
+}
+
+.chat-action:hover {
+  background: linear-gradient(135deg, #0D9488 0%, #0F766E 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(20, 184, 166, 0.35);
 }
 
 /* Loading State */

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import PageTransition from './animations/PageTransition';
 import './SavedVersesPage.css';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
@@ -101,6 +102,7 @@ function SavedVersesPage() {
   }
 
   return (
+    <PageTransition>
     <div className="saved-verses-page">
       <div className="saved-container">
         <div className="page-header-modern">
@@ -220,6 +222,7 @@ function SavedVersesPage() {
         )}
       </div>
     </div>
+    </PageTransition>
   );
 }
 

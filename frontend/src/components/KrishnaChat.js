@@ -1,164 +1,220 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
+import PageTransition from './animations/PageTransition';
 import './KrishnaChat.css';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
-function KrishnaChat({ guidanceContext }) {
+// ── Typing animation bubble ────────────────────────────────────────────────────
+function TypingBubble() {
+  return (
+    <div className="kc-message kc-krishna">
+      <div className="kc-avatar">🕉</div>
+      <div className="kc-bubble kc-bubble-krishna">
+        <div className="kc-typing">
+          <span /><span /><span />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Verse reference pill ───────────────────────────────────────────────────────
+function VerseRef({ chapter, verse, translation }) {
+  const [open, setOpen] = useState(false);
+  if (!chapter || !verse) return null;
+  return (
+    <div className="kc-verse-ref">
+      <button className="kc-verse-pill" onClick={() => setOpen(o => !o)}>
+        📖 Chapter {chapter} · Verse {verse}
+        <span className="kc-verse-chevron">{open ? '▲' : '▼'}</span>
+      </button>
+      {open && translation && (
+        <div className="kc-verse-expand">"{translation}"</div>
+      )}
+    </div>
+  );
+}
+
+// ── Single message bubble ──────────────────────────────────────────────────────
+function Message({ msg }) {
+  const isUser = msg.type === 'user';
+  const paragraphs = (msg.text || '').split('\n\n').filter(Boolean);
+
+  return (
+    <motion.div
+      className={`kc-message ${isUser ? 'kc-user' : 'kc-krishna'}`}
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, ease: 'easeOut' }}
+    >
+      {!isUser && <div className="kc-avatar">🕉</div>}
+      <div className={`kc-bubble ${isUser ? 'kc-bubble-user' : 'kc-bubble-krishna'}`}>
+        <div className="kc-text">
+          {paragraphs.map((p, i) => <p key={i}>{p}</p>)}
+        </div>
+        {msg.verse_references?.map((vr, i) => (
+          <VerseRef key={i} chapter={vr.chapter} verse={vr.verse} translation={vr.translation} />
+        ))}
+        <div className="kc-time">
+          {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+        </div>
+      </div>
+      {isUser && <div className="kc-avatar kc-avatar-user">🙏</div>}
+    </motion.div>
+  );
+}
+
+// ── Main component ─────────────────────────────────────────────────────────────
+function KrishnaChat({ guidanceContext: propContext }) {
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  // Accept context from router state (Guidance page redirect) or prop (embedded)
+  const routeContext = location.state || null;
+  const context = routeContext || propContext || {};
+
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const messagesEndRef = useRef(null);
+  const bottomRef = useRef(null);
+  const inputRef = useRef(null);
 
+  // Initial greeting on mount
   useEffect(() => {
-    // Initial greeting from Krishna - calm and soft (multilingual support)
-    if (messages.length === 0) {
-      const greeting = 'Namaste. I am here, always with you. Share what is in your heart, and let the wisdom of the Gita bring clarity to your path. Speak freely in any language (English, Hindi, or any other), and I shall guide you with compassion in the same language. (आप किसी भी भाषा में बात कर सकते हैं - अंग्रेजी, हिंदी, या कोई अन्य।)';
-      setMessages([{
-        type: 'krishna',
-        text: greeting,
-        timestamp: new Date().toISOString()
-      }]);
-    }
+    const emotion = context.emotion || '';
+    const greeting = emotion
+      ? `Namaste. I see you are feeling ${emotion.toLowerCase()}. I am here with you. Share what is in your heart, and let the wisdom of the Gita bring clarity to your path.`
+      : 'Namaste. I am here, always with you. Share what is in your heart, and let the wisdom of the Gita bring clarity to your path.';
+
+    setMessages([{
+      type: 'krishna',
+      text: greeting,
+      timestamp: new Date().toISOString(),
+      verse_references: [],
+    }]);
   }, []);
 
   useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, loading]);
 
   const handleSend = async (e) => {
     e.preventDefault();
-    if (!input.trim() || loading) return;
+    const text = input.trim();
+    if (!text || loading) return;
 
-    const userMessage = input.trim();
     setInput('');
-    
-    // Add user message
-    const newUserMessage = {
-      type: 'user',
-      text: userMessage,
-      timestamp: new Date().toISOString()
-    };
-    setMessages(prev => [...prev, newUserMessage]);
+    const userMsg = { type: 'user', text, timestamp: new Date().toISOString() };
+    setMessages(prev => [...prev, userMsg]);
     setLoading(true);
 
-    try {
-      // Prepare context from guidance
-      const context = guidanceContext ? {
-        chapter: guidanceContext.chapter_number || guidanceContext.chapter || 'Unknown',
-        verse: guidanceContext.verse_number || guidanceContext.verse || 'Unknown',
-        emotion: guidanceContext.emotion || guidanceContext.detected_emotion || 'Unknown',
-        what_happened: guidanceContext.what_happened || '',
-        krishna_vaani: guidanceContext.krishna_vaani || '',
-        verse_text: guidanceContext.text || '',
-        verse_meaning: guidanceContext.meaning || '',
-        guidance: guidanceContext.guidance || ''
-      } : {};
+    // Build chat_history from current messages (exclude greeting for brevity)
+    const chatHistory = messages.slice(1).map(m => ({ type: m.type, text: m.text }));
 
-      const response = await axios.post(`${API_URL}/api/krishna-chat`, {
-        message: userMessage,
-        context: context
+    try {
+      const res = await axios.post(`${API_URL}/api/rag-chat`, {
+        message: text,
+        context: {
+          user_input:    context.user_input    || '',
+          emotion:       context.emotion       || '',
+          what_happen:   context.what_happen   || '',
+          krishna_vaani: context.krishna_vaani || '',
+          guidance:      context.guidance      || '',
+        },
+        chat_history: chatHistory,
       });
 
-      // Add Krishna's response
-      const krishnaMessage = {
+      setMessages(prev => [...prev, {
         type: 'krishna',
-        text: response.data.response,
-        timestamp: response.data.timestamp
-      };
-      setMessages(prev => [...prev, krishnaMessage]);
-    } catch (error) {
-      console.error('Error getting Krishna response:', error);
-      // Error message - will be in user's language if they were chatting in another language
-      const errorMessage = {
+        text: res.data.response,
+        timestamp: res.data.timestamp || new Date().toISOString(),
+        verse_references: res.data.verse_references || [],
+      }]);
+    } catch (err) {
+      console.error(err);
+      setMessages(prev => [...prev, {
         type: 'krishna',
-        text: 'Forgive me, Arjuna. There was an error in receiving your message. Please try again, and I shall respond with wisdom. (कृपया पुनः प्रयास करें)',
-        timestamp: new Date().toISOString()
-      };
-      setMessages(prev => [...prev, errorMessage]);
+        text: 'Forgive me, dear seeker. Something went wrong. Please try again.',
+        timestamp: new Date().toISOString(),
+        verse_references: [],
+      }]);
     } finally {
       setLoading(false);
+      inputRef.current?.focus();
     }
   };
 
-  const formatMessage = (text) => {
-    // Split by double newlines to create paragraphs
-    const paragraphs = text.split('\n\n');
-    return paragraphs.map((para, idx) => (
-      <p key={idx} className="message-paragraph">{para}</p>
-    ));
-  };
+  const isStandalone = !!routeContext;
 
   return (
-    <div className="ai-chat-container">
-      <div className="chat-header-modern">
-        <div className="chat-header-left">
-          <div className="ai-avatar">🕉</div>
+    <PageTransition>
+    <div className={`kc-page ${isStandalone ? 'kc-standalone' : 'kc-embedded'}`}>
+      {/* Header */}
+      <div className="kc-header">
+        <div className="kc-header-left">
+          {isStandalone && (
+            <button className="kc-back-btn" onClick={() => navigate(-1)}>← Back</button>
+          )}
+          <div className="kc-header-avatar">🕉</div>
           <div>
-            <h3 className="chat-title">Chat with Krishna</h3>
-            <p className="chat-subtitle">AI-powered guidance from the Bhagavad Gita</p>
+            <h2 className="kc-header-title">Chat with Krishna</h2>
+            <p className="kc-header-sub">
+              {context.emotion
+                ? `Guidance for: ${context.emotion}`
+                : 'Bhagavad Gita · RAG-powered wisdom'}
+            </p>
           </div>
         </div>
-      </div>
-
-      <div className="messages-container-modern">
-        {messages.map((msg, idx) => (
-          <div key={idx} className={`message-modern ${msg.type}`}>
-            {msg.type === 'krishna' && (
-              <div className="message-avatar-modern">🕉</div>
-            )}
-            <div className="message-bubble">
-              <div className="message-text-modern">
-                {formatMessage(msg.text)}
-              </div>
-              <div className="message-time-modern">
-                {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-              </div>
-            </div>
-          </div>
-        ))}
-        
-        {loading && (
-          <div className="message-modern krishna">
-            <div className="message-avatar-modern">🕉</div>
-            <div className="message-bubble">
-              <div className="typing-indicator-modern">
-                <span></span>
-                <span></span>
-                <span></span>
-              </div>
-            </div>
+        {context.chapter_number && context.verse_number && (
+          <div className="kc-context-pill">
+            📖 Ch {context.chapter_number} · V {context.verse_number}
           </div>
         )}
-        
-        <div ref={messagesEndRef} />
       </div>
 
-      <form onSubmit={handleSend} className="chat-input-form-modern">
-                    <input
-                      type="text"
-                      className="chat-input-modern"
-                      value={input}
-                      onChange={(e) => setInput(e.target.value)}
-                      placeholder="Ask Krishna for guidance... (English, Hindi, or any language)"
-                      disabled={loading}
-                    />
-        <button 
-          type="submit" 
-          className="chat-send-btn-modern"
-          disabled={loading || !input.trim()}
-        >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <line x1="22" y1="2" x2="11" y2="13"></line>
-            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+      {/* Context banner (only when coming from Guidance page) */}
+      {isStandalone && context.krishna_vaani && (
+        <div className="kc-context-banner">
+          <span className="kc-banner-label">Previous guidance</span>
+          <span className="kc-banner-text">"{context.krishna_vaani}"</span>
+        </div>
+      )}
+
+      {/* Messages */}
+      <div className="kc-messages">
+        <AnimatePresence initial={false}>
+          {messages.map((msg, i) => <Message key={i} msg={msg} />)}
+        </AnimatePresence>
+        {loading && <TypingBubble />}
+        <div ref={bottomRef} />
+      </div>
+
+      {/* Input */}
+      <form className="kc-input-row" onSubmit={handleSend}>
+        <motion.input
+          ref={inputRef}
+          className="kc-input"
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          placeholder="Ask Krishna anything..."
+          disabled={loading}
+          autoComplete="off"
+          whileFocus={{ scale: 1.01, boxShadow: '0 0 0 3px rgba(20,184,166,0.18)' }}
+          transition={{ duration: 0.2 }}
+        />
+        <button type="submit" className="kc-send-btn" disabled={loading || !input.trim()}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="22" y1="2" x2="11" y2="13" />
+            <polygon points="22 2 15 22 11 13 2 9 22 2" />
           </svg>
         </button>
       </form>
     </div>
+    </PageTransition>
   );
 }
 

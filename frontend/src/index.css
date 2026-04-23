@@ -4,6 +4,10 @@
   box-sizing: border-box;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 body {
   font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
     'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
@@ -12,17 +16,7 @@ body {
   -moz-osx-font-smoothing: grayscale;
   background: linear-gradient(135deg, #E0F2FE 0%, #BAE6FD 50%, #DBEAFE 100%);
   min-height: 100vh;
-  transition: background 0.3s ease, color 0.3s ease;
-}
-
-/* Dark Mode Styles */
-body.dark-mode {
-  background: linear-gradient(135deg, #0F172A 0%, #1E293B 50%, #0F172A 100%);
-  color: #E2E8F0;
-}
-
-body.dark-mode * {
-  color: inherit;
+  overflow-y: scroll;
 }
 
 /* Notification Styles */
@@ -89,12 +83,33 @@ body.dark-mode * {
   }
 }
 
-body.dark-mode .notification {
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
-}
-
 code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;
 }
 
+
+/* ── Global scrollbar styling ─────────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #c4b5fd;
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #a78bfa;
+}
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #c4b5fd transparent;
+}
