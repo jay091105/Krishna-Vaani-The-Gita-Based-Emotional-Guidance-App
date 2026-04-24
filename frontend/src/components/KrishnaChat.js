@@ -3,18 +3,34 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import PageTransition from './animations/PageTransition';
-import './KrishnaChat.css';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+const APP_SYMBOL = 'AI';
+const CHAT_EMOTION_STORAGE_KEY = 'chatSelectedEmotion';
+
+const EMOTION_CHOICES = [
+  'Auto Detect',
+  'Peace/Calm',
+  'Anxiety/Worry',
+  'Anger/Frustration',
+  'Stress/Tension',
+  'Sadness/Grief',
+  'Confusion/Doubt',
+  'Joy/Happiness',
+];
 
 // ── Typing animation bubble ────────────────────────────────────────────────────
 function TypingBubble() {
   return (
-    <div className="kc-message kc-krishna">
-      <div className="kc-avatar">🕉</div>
-      <div className="kc-bubble kc-bubble-krishna">
-        <div className="kc-typing">
-          <span /><span /><span />
+    <div className="flex max-w-[86%] items-start gap-2 self-start">
+      <div className="mt-0.5 grid h-8 w-8 place-content-center rounded-full bg-gradient-to-br from-cyan-400 to-teal-500 text-sm shadow-[0_0_15px_rgba(34,211,238,0.4)]">
+        {APP_SYMBOL}
+      </div>
+      <div className="rounded-2xl rounded-tl-sm border border-white/10 bg-white/[0.04] px-4 py-3">
+        <div className="flex gap-1">
+          <span className="h-2 w-2 animate-pulse rounded-full bg-cyan-300" />
+          <span className="h-2 w-2 animate-pulse rounded-full bg-cyan-300 [animation-delay:150ms]" />
+          <span className="h-2 w-2 animate-pulse rounded-full bg-cyan-300 [animation-delay:300ms]" />
         </div>
       </div>
     </div>
@@ -26,13 +42,18 @@ function VerseRef({ chapter, verse, translation }) {
   const [open, setOpen] = useState(false);
   if (!chapter || !verse) return null;
   return (
-    <div className="kc-verse-ref">
-      <button className="kc-verse-pill" onClick={() => setOpen(o => !o)}>
+    <div className="mt-2">
+      <button
+        className="rounded-full border border-cyan-300/30 bg-cyan-400/10 px-2.5 py-1 text-xs text-cyan-100 transition hover:bg-cyan-400/20"
+        onClick={() => setOpen((o) => !o)}
+      >
         📖 Chapter {chapter} · Verse {verse}
-        <span className="kc-verse-chevron">{open ? '▲' : '▼'}</span>
+        <span className="ml-1 text-[10px]">{open ? '▲' : '▼'}</span>
       </button>
       {open && translation && (
-        <div className="kc-verse-expand">"{translation}"</div>
+        <div className="mt-2 rounded-xl border border-white/10 bg-white/[0.03] p-3 text-xs italic leading-6 text-slate-300">
+          "{translation}"
+        </div>
       )}
     </div>
   );
@@ -45,24 +66,44 @@ function Message({ msg }) {
 
   return (
     <motion.div
-      className={`kc-message ${isUser ? 'kc-user' : 'kc-krishna'}`}
+      className={`flex max-w-[86%] gap-2 ${isUser ? 'self-end flex-row-reverse' : 'self-start'}`}
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, ease: 'easeOut' }}
     >
-      {!isUser && <div className="kc-avatar">🕉</div>}
-      <div className={`kc-bubble ${isUser ? 'kc-bubble-user' : 'kc-bubble-krishna'}`}>
-        <div className="kc-text">
-          {paragraphs.map((p, i) => <p key={i}>{p}</p>)}
+      {!isUser && (
+        <div className="mt-0.5 grid h-8 w-8 place-content-center rounded-full bg-gradient-to-br from-cyan-400 to-teal-500 text-sm shadow-[0_0_15px_rgba(34,211,238,0.4)]">
+          {APP_SYMBOL}
         </div>
+      )}
+
+      <div
+        className={`rounded-2xl px-4 py-3 ${
+          isUser
+            ? 'rounded-tr-sm bg-gradient-to-br from-indigo-500 to-violet-500 text-white shadow-[0_10px_25px_rgba(99,102,241,0.35)]'
+            : 'rounded-tl-sm border border-white/10 bg-white/[0.04] text-slate-100'
+        }`}
+      >
+        <div className="space-y-2 text-sm leading-7">
+          {paragraphs.map((p, i) => (
+            <p key={i}>{p}</p>
+          ))}
+        </div>
+
         {msg.verse_references?.map((vr, i) => (
           <VerseRef key={i} chapter={vr.chapter} verse={vr.verse} translation={vr.translation} />
         ))}
-        <div className="kc-time">
+
+        <div className={`mt-2 text-right text-[11px] ${isUser ? 'text-indigo-100/80' : 'text-slate-400'}`}>
           {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
         </div>
       </div>
-      {isUser && <div className="kc-avatar kc-avatar-user">🙏</div>}
+
+      {isUser && (
+        <div className="mt-0.5 grid h-8 w-8 place-content-center rounded-full bg-gradient-to-br from-indigo-500 to-violet-500 text-sm shadow-[0_0_15px_rgba(99,102,241,0.4)]">
+          🙏
+        </div>
+      )}
     </motion.div>
   );
 }
@@ -79,8 +120,24 @@ function KrishnaChat({ guidanceContext: propContext }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [selectedEmotion, setSelectedEmotion] = useState(() => {
+    const stored = localStorage.getItem(CHAT_EMOTION_STORAGE_KEY) || 'Auto Detect';
+    if (stored === 'Auto Detect' || EMOTION_CHOICES.includes(stored)) return stored;
+    return 'Auto Detect';
+  });
   const bottomRef = useRef(null);
   const inputRef = useRef(null);
+
+  useEffect(() => {
+    localStorage.setItem(CHAT_EMOTION_STORAGE_KEY, selectedEmotion);
+  }, [selectedEmotion]);
+
+  useEffect(() => {
+    const contextEmotion = context.emotion;
+    if (contextEmotion && EMOTION_CHOICES.includes(contextEmotion)) {
+      setSelectedEmotion(contextEmotion);
+    }
+  }, [context.emotion]);
 
   // Initial greeting on mount
   useEffect(() => {
@@ -117,6 +174,7 @@ function KrishnaChat({ guidanceContext: propContext }) {
     try {
       const res = await axios.post(`${API_URL}/api/rag-chat`, {
         message: text,
+        selected_emotion: selectedEmotion,
         context: {
           user_input:    context.user_input    || '',
           emotion:       context.emotion       || '',
@@ -151,40 +209,70 @@ function KrishnaChat({ guidanceContext: propContext }) {
 
   return (
     <PageTransition>
-    <div className={`kc-page ${isStandalone ? 'kc-standalone' : 'kc-embedded'}`}>
-      {/* Header */}
-      <div className="kc-header">
-        <div className="kc-header-left">
+    <div className="glass-panel mx-auto flex h-[calc(100vh-160px)] w-full max-w-6xl flex-col overflow-hidden">
+      <div className="flex items-center justify-between border-b border-white/10 bg-gradient-to-r from-slate-900/70 to-slate-800/50 px-5 py-4">
+        <div className="flex items-center gap-3">
           {isStandalone && (
-            <button className="kc-back-btn" onClick={() => navigate(-1)}>← Back</button>
+            <button
+              className="rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-sm text-slate-200 transition hover:bg-white/10"
+              onClick={() => navigate(-1)}
+            >
+              ← Back
+            </button>
           )}
-          <div className="kc-header-avatar">🕉</div>
+
+          <div className="grid h-10 w-10 place-content-center rounded-full bg-gradient-to-br from-cyan-400 to-teal-500 text-lg shadow-[0_0_18px_rgba(34,211,238,0.45)]">
+            {APP_SYMBOL}
+          </div>
+
           <div>
-            <h2 className="kc-header-title">Chat with Krishna</h2>
-            <p className="kc-header-sub">
+            <h2 className="text-2xl font-semibold text-slate-100">Chat with Krishna</h2>
+            <p className="text-sm text-slate-400">
               {context.emotion
                 ? `Guidance for: ${context.emotion}`
                 : 'Bhagavad Gita · RAG-powered wisdom'}
             </p>
           </div>
         </div>
+
         {context.chapter_number && context.verse_number && (
-          <div className="kc-context-pill">
+          <div className="rounded-full border border-cyan-300/30 bg-cyan-400/10 px-3 py-1 text-sm font-medium text-cyan-200">
             📖 Ch {context.chapter_number} · V {context.verse_number}
           </div>
         )}
       </div>
 
-      {/* Context banner (only when coming from Guidance page) */}
+      <div className="border-b border-white/10 bg-slate-900/35 px-5 py-3">
+        <div className="mb-2 text-xs uppercase tracking-[0.18em] text-slate-400">Emotion Mode for chat response</div>
+        <div className="flex flex-wrap gap-2">
+          {EMOTION_CHOICES.map((emotionChoice) => {
+            const active = selectedEmotion === emotionChoice;
+            return (
+              <button
+                key={emotionChoice}
+                type="button"
+                onClick={() => setSelectedEmotion(emotionChoice)}
+                className={`rounded-full border px-3 py-1.5 text-xs transition ${
+                  active
+                    ? 'border-cyan-300/45 bg-cyan-400/20 text-cyan-100'
+                    : 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/10'
+                }`}
+              >
+                {emotionChoice}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       {isStandalone && context.krishna_vaani && (
-        <div className="kc-context-banner">
-          <span className="kc-banner-label">Previous guidance</span>
-          <span className="kc-banner-text">"{context.krishna_vaani}"</span>
+        <div className="flex items-start gap-2 border-b border-cyan-300/20 bg-cyan-400/10 px-5 py-3">
+          <span className="shrink-0 text-xs font-semibold uppercase tracking-[0.2em] text-cyan-200">Previous guidance</span>
+          <span className="line-clamp-2 text-sm italic text-slate-300">"{context.krishna_vaani}"</span>
         </div>
       )}
 
-      {/* Messages */}
-      <div className="kc-messages">
+      <div className="flex-1 space-y-4 overflow-y-auto bg-slate-950/25 px-5 py-5">
         <AnimatePresence initial={false}>
           {messages.map((msg, i) => <Message key={i} msg={msg} />)}
         </AnimatePresence>
@@ -192,20 +280,24 @@ function KrishnaChat({ guidanceContext: propContext }) {
         <div ref={bottomRef} />
       </div>
 
-      {/* Input */}
-      <form className="kc-input-row" onSubmit={handleSend}>
+      <form className="flex gap-3 border-t border-white/10 bg-slate-900/40 px-5 py-4" onSubmit={handleSend}>
         <motion.input
           ref={inputRef}
-          className="kc-input"
+          className="flex-1 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-100 outline-none ring-cyan-400/35 transition placeholder:text-slate-400 focus:ring-2"
           value={input}
-          onChange={e => setInput(e.target.value)}
+          onChange={(e) => setInput(e.target.value)}
           placeholder="Ask Krishna anything..."
           disabled={loading}
           autoComplete="off"
-          whileFocus={{ scale: 1.01, boxShadow: '0 0 0 3px rgba(20,184,166,0.18)' }}
+          whileFocus={{ scale: 1.005 }}
           transition={{ duration: 0.2 }}
         />
-        <button type="submit" className="kc-send-btn" disabled={loading || !input.trim()}>
+
+        <button
+          type="submit"
+          className="btn-ripple grid h-12 w-12 place-content-center rounded-xl bg-gradient-to-br from-cyan-400 to-indigo-500 text-white shadow-[0_0_20px_rgba(34,211,238,0.4)] transition hover:brightness-110 disabled:opacity-50"
+          disabled={loading || !input.trim()}
+        >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
             stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <line x1="22" y1="2" x2="11" y2="13" />

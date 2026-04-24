@@ -1,5 +1,5 @@
 """
-rag.generator — Krishna-style response generation via Ollama llama3:latest.
+rag.generator — Krishna-style response generation via Ollama.
 
 Public API
 ----------
@@ -17,8 +17,9 @@ from rag.prompt_builder import build_messages
 
 logger = logging.getLogger(__name__)
 
-OLLAMA_MODEL   = "phi3:mini"
-OLLAMA_TIMEOUT = 60          # seconds — llama3 on CPU can be slow
+OLLAMA_MODEL   = "gemma:2b"
+OLLAMA_TIMEOUT = 60          # seconds — CPU inference can be slow
+_OLLAMA_CLIENT = ollama.Client(timeout=OLLAMA_TIMEOUT)
 
 # ── Fallback templates (used when Ollama is unavailable) ──────────────────────
 
@@ -124,7 +125,7 @@ def generate_krishna_response(
     chat_history: list[dict],
 ) -> str:
     """
-    Generate a Krishna-style response using llama3:latest via Ollama.
+    Generate a Krishna-style response using the configured Ollama model.
 
     Falls back to the template-driven response if Ollama is not running
     or returns an error, so the app always works even without Ollama.
@@ -146,13 +147,14 @@ def generate_krishna_response(
 
     try:
         logger.info("Calling Ollama model=%s", OLLAMA_MODEL)
-        response = ollama.chat(
+        response = _OLLAMA_CLIENT.chat(
             model=OLLAMA_MODEL,
             messages=messages,
             options={
-                "temperature": 0.75,
+                "temperature": 0.6,
                 "top_p": 0.9,
-                "num_predict": 512,   # max tokens in response
+                "num_predict": 96,    # aggressive cap for faster response on CPU
+                "num_ctx": 1024,
             },
         )
         text = response["message"]["content"].strip()

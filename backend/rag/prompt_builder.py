@@ -13,17 +13,18 @@ import logging
 logger = logging.getLogger(__name__)
 
 _SYSTEM_TEMPLATE = """\
-You are Lord Krishna speaking directly to a seeker (Arjuna) in the style of the Bhagavad Gita.
+You are Bhagavan Shri Krishna speaking to Arjuna in a specific life situation.
 
-Rules:
-- Speak with calm, deep wisdom — never preachy or robotic.
-- Address the seeker warmly: "Dear one", "O Arjuna", "O seeker", etc.
-- Always reference the retrieved Gita verses naturally in your response.
-- Keep the response focused: 3–5 paragraphs maximum.
-- End with one short, memorable closing line.
-- Do NOT use bullet points or numbered lists.
-- Do NOT repeat the seeker's words back verbatim.
-- Respond in the same language the seeker used (Hindi or English).
+Response style requirements:
+- Start with direct address such as "O Arjuna," or "Dear Arjuna,".
+- Speak as if guiding Arjuna in the same situation the user just described.
+- Keep it practical and compassionate, not generic philosophy.
+- Mention at least one relevant Gita reference from provided verses naturally.
+- Explain what Krishna advises to DO right now (one clear action first).
+- Keep response concise: 2-3 short paragraphs.
+- End with one Krishna-like closing line of strength.
+- No bullet points, no lists, no markdown.
+- Reply in the same language as user message.
 """
 
 
@@ -49,50 +50,36 @@ def build_messages(
     chat_history      : previous turns [{type: "user"|"krishna", text: "..."}]
     """
     emotion       = context.get("emotion", "unknown")
-    user_input    = context.get("user_input", "")
-    what_happen   = context.get("what_happen", "")
-    krishna_vaani = context.get("krishna_vaani", "")
-    guidance      = context.get("guidance", "")
+    user_input    = (context.get("user_input", "") or "")[:220]
+    what_happen   = (context.get("what_happen", "") or "")[:220]
+    krishna_vaani = (context.get("krishna_vaani", "") or "")[:220]
+    guidance      = (context.get("guidance", "") or "")[:220]
 
-    # ── Format retrieved verses ────────────────────────────────────────────────
+    # ── Format retrieved verses (compact to reduce token load) ────────────────
     verse_block_lines: list[str] = []
-    for v in retrieved_verses:
+    for v in retrieved_verses[:2]:
         ch          = v.get("chapter_number", "?")
         vn          = v.get("verse_number", "?")
-        translation = v.get("translation") or v.get("text", "")
-        kv          = v.get("krishna_vaani", "")
-        tags        = ", ".join(v.get("emotion_tags", []))
-        verse_block_lines.append(
-            f"  • Chapter {ch}, Verse {vn}: \"{translation}\""
-            + (f"\n    Krishna Vaani: \"{kv}\"" if kv else "")
-            + f"\n    [emotion tags: {tags}]"
-        )
+        translation = (v.get("translation") or v.get("text", "") or "")[:180]
+        verse_block_lines.append(f"Chapter {ch}, Verse {vn}: \"{translation}\"")
     verse_block = "\n".join(verse_block_lines) or "  (no verses retrieved)"
 
-    # ── Build context block injected into the first user turn ─────────────────
     context_block = (
-        f"[CONTEXT]\n"
-        f"Seeker's emotion: {emotion}\n"
-        f"Original situation: {user_input}\n"
-        f"What happened: {what_happen}\n"
-        f"Previous Krishna Vaani given: {krishna_vaani}\n"
-        f"Previous guidance given: {guidance}\n"
-        f"\n[RELEVANT GITA VERSES]\n{verse_block}\n"
+        f"Emotion: {emotion}\n"
+        f"Situation: {user_input or what_happen}\n"
+        f"Previous guidance: {guidance}\n"
+        f"Relevant verses:\n{verse_block}"
     )
 
-    messages: list[dict] = [{"role": "system", "content": _SYSTEM_TEMPLATE}]
+    messages: list[dict] = [
+        {"role": "system", "content": _SYSTEM_TEMPLATE},
+        {"role": "system", "content": context_block},
+    ]
 
-    # ── Inject context as a hidden system note before history ─────────────────
-    messages.append({"role": "user", "content": context_block})
-    messages.append({
-        "role": "assistant",
-        "content": "I have received the seeker's context and the relevant Gita verses. I am ready to respond with wisdom."
-    })
-
-    # ── Replay last 3 exchanges from chat history ──────────────────────────────
-    for turn in chat_history[-6:]:
+    # ── Replay only the latest 1 exchange for speed ───────────────────────────
+    for turn in chat_history[-2:]:
         role    = "user" if turn.get("type") == "user" else "assistant"
-        content = turn.get("text", "").strip()
+        content = (turn.get("text", "") or "").strip()[:160]
         if content:
             messages.append({"role": role, "content": content})
 

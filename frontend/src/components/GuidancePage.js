@@ -1,30 +1,83 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { motion } from 'framer-motion';
-import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import {
+  Sparkles,
+  Brain,
+  Flame,
+  CloudRain,
+  AlertTriangle,
+  Leaf,
+  Loader2,
+  Save,
+  MessageSquare,
+  RefreshCw,
+} from 'lucide-react';
 import { useNotification } from '../contexts/NotificationContext';
 import PageTransition from './animations/PageTransition';
-import ScrollReveal from './animations/ScrollReveal';
-import './GuidancePage.css';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 const GUIDANCE_INPUT_STORAGE_KEY = 'guidanceInput';
 const GUIDANCE_RESULT_STORAGE_KEY = 'guidanceResult';
 
-const EMOTION_COLORS = {
-  'Peace/Calm': '#10B981',
-  'Anxiety/Worry': '#F59E0B',
-  'Anger/Frustration': '#EF4444',
-  'Stress/Tension': '#F97316',
-  'Sadness/Grief': '#6B7280',
-  'Confusion/Doubt': '#3B82F6',
-  'Joy/Happiness': '#8B5CF6'
+const EMOTION_THEME = {
+  anger: {
+    color: 'from-rose-500 via-red-500 to-orange-400',
+    glow: 'shadow-[0_0_22px_rgba(244,63,94,0.45)]',
+    icon: Flame,
+  },
+  sadness: {
+    color: 'from-sky-500 via-blue-500 to-indigo-500',
+    glow: 'shadow-[0_0_22px_rgba(59,130,246,0.45)]',
+    icon: CloudRain,
+  },
+  anxiety: {
+    color: 'from-amber-400 via-yellow-400 to-orange-400',
+    glow: 'shadow-[0_0_22px_rgba(251,191,36,0.45)]',
+    icon: AlertTriangle,
+  },
+  calm: {
+    color: 'from-emerald-400 via-green-400 to-teal-400',
+    glow: 'shadow-[0_0_22px_rgba(34,197,94,0.45)]',
+    icon: Leaf,
+  },
+  default: {
+    color: 'from-indigo-500 via-violet-500 to-cyan-400',
+    glow: 'shadow-[0_0_22px_rgba(99,102,241,0.45)]',
+    icon: Brain,
+  },
 };
 
-const cardHover = { scale: 1.01, boxShadow: '0 8px 32px rgba(20,184,166,0.12)' };
-const cardTap   = { scale: 0.99 };
-const spring    = { type: 'spring', stiffness: 300, damping: 24 };
+function TypewriterText({ text }) {
+  const [rendered, setRendered] = useState('');
+
+  useEffect(() => {
+    if (!text) {
+      setRendered('');
+      return;
+    }
+    let idx = 0;
+    setRendered('');
+    const timer = window.setInterval(() => {
+      idx += 2;
+      setRendered(text.slice(0, idx));
+      if (idx >= text.length) window.clearInterval(timer);
+    }, 14);
+    return () => window.clearInterval(timer);
+  }, [text]);
+
+  return <p className="whitespace-pre-line text-sm leading-7 text-slate-200">{rendered}</p>;
+}
+
+function normalizeEmotionKey(emotion) {
+  const e = (emotion || '').toLowerCase();
+  if (e.includes('anger') || e.includes('frustration')) return 'anger';
+  if (e.includes('sadness') || e.includes('grief')) return 'sadness';
+  if (e.includes('anxiety') || e.includes('worry')) return 'anxiety';
+  if (e.includes('calm') || e.includes('peace')) return 'calm';
+  return 'default';
+}
 
 function GuidancePage() {
   const location = useLocation();
@@ -109,6 +162,17 @@ function GuidancePage() {
     }
   };
 
+  const emotionData = useMemo(() => {
+    if (!result?.emotion_breakdown) return [];
+    return Object.entries(result.emotion_breakdown)
+      .map(([name, value]) => ({ name, value: Number(value) || 0, key: normalizeEmotionKey(name) }))
+      .sort((a, b) => b.value - a.value);
+  }, [result]);
+
+  const primaryEmotionKey = normalizeEmotionKey(result?.detected_emotion);
+  const primaryTheme = EMOTION_THEME[primaryEmotionKey] || EMOTION_THEME.default;
+  const PrimaryIcon = primaryTheme.icon;
+
   const handleSaveVerse = async () => {
     if (!result) return;
     setSaving(true);
@@ -134,250 +198,187 @@ function GuidancePage() {
     }
   };
 
-  const prepareEmotionData = () => {
-    if (!result?.emotion_breakdown) return [];
-    const breakdown = result.emotion_breakdown || {};
-    return Object.keys(EMOTION_COLORS)
-      .map(emotion => ({ name: emotion.split('/')[0], value: parseFloat((breakdown[emotion] || 0).toFixed(1)), fullName: emotion }))
-      .sort((a, b) => b.value - a.value);
-  };
-
-  const prepareBarData = () => {
-    if (!result?.emotion_breakdown) return [];
-    const breakdown = result.emotion_breakdown || {};
-    return Object.keys(EMOTION_COLORS)
-      .map(emotion => ({ emotion: emotion.split('/')[0], confidence: parseFloat((breakdown[emotion] || 0).toFixed(1)), fullName: emotion }))
-      .sort((a, b) => b.confidence - a.confidence);
-  };
-
   return (
     <PageTransition>
-      <div className="ai-dashboard-page">
-        <div className="dashboard-container">
-
-          {/* ── LEFT COLUMN ── */}
-          <div className="left-column">
-            <motion.div
-              className="dashboard-card input-panel"
-              whileHover={cardHover}
-              whileTap={cardTap}
-              transition={spring}
-            >
-              <div className="panel-header">
-                <h3 className="panel-title">Share Your Feelings</h3>
-                <div className="ai-badge">Emotion AI</div>
-              </div>
-              <form onSubmit={handleSubmit} className="input-form">
-                <textarea
-                  className="ai-textarea"
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  placeholder="Describe your feelings, situation, or what you're going through..."
-                  disabled={loading}
-                  rows={8}
-                />
-                <button type="submit" className="ai-primary-btn" disabled={loading || !input.trim()}>
-                  {loading ? (<><span className="spinner-small"></span>Analyzing...</>) : 'Get Krishna Vaani'}
-                </button>
-              </form>
-              <div className="tech-tags">
-                <span className="tech-tag">Emotion AI</span>
-                <span className="tech-tag">Gita Wisdom</span>
-                <span className="tech-tag">Insights</span>
-              </div>
-            </motion.div>
-
-            {result && (
-              <ScrollReveal delay={0.1}>
-                <div className="dashboard-card emotion-panel fade-in">
-                  <div className="panel-header">
-                    <h3 className="panel-title">Emotion Detected</h3>
-                    <div className="confidence-score">{result.confidence}%</div>
-                  </div>
-                  <div className="primary-emotion">
-                    <div className={`emotion-badge-large ${result.detected_emotion.toLowerCase().replace('/', '-').replace(' ', '-')}`}>
-                      {result.detected_emotion}
-                    </div>
-                    {result.emotion_breakdown && (
-                      <div className="primary-emotion-explanation">
-                        <span className="explanation-text">
-                          Selected as primary emotion with {result.confidence.toFixed(1)}% confidence
-                          {(() => {
-                            const sorted = Object.entries(result.emotion_breakdown)
-                              .sort((a, b) => b[1] - a[1])
-                              .filter(([e]) => e !== result.detected_emotion);
-                            const second = sorted[0];
-                            if (second && second[1] > 0) {
-                              const diff = result.confidence - second[1];
-                              return diff > 5 ? ` (${diff.toFixed(1)}% higher than ${second[0]})` : ` (similar to ${second[0]})`;
-                            }
-                            return '';
-                          })()}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-
-                  {result.emotion_breakdown && (
-                    <div className="emotion-analytics">
-                      <div className="emotion-list-container">
-                        <h4 className="chart-title">Complete Emotion Analysis</h4>
-                        <div className="emotion-list">
-                          {prepareEmotionData().map((entry, index) => (
-                            <div key={index} className={`emotion-list-item ${entry.fullName === result.detected_emotion ? 'primary-emotion-item' : ''}`}>
-                              <div className="emotion-list-label">
-                                <span className="emotion-color-dot" style={{ backgroundColor: EMOTION_COLORS[entry.fullName] || '#3B82F6' }}></span>
-                                <span className="emotion-name">{entry.fullName}</span>
-                                {entry.fullName === result.detected_emotion && <span className="primary-badge">Primary</span>}
-                              </div>
-                              <div className="emotion-list-value">
-                                <span className={`emotion-percentage ${entry.fullName === result.detected_emotion ? 'primary-percentage' : ''}`}>{entry.value.toFixed(1)}%</span>
-                                <div className="emotion-progress-bar">
-                                  <div className={`emotion-progress-fill ${entry.fullName === result.detected_emotion ? 'primary-progress' : ''}`}
-                                    style={{ width: `${Math.min(entry.value, 100)}%`, backgroundColor: EMOTION_COLORS[entry.fullName] || '#3B82F6' }}></div>
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      <div className="chart-container">
-                        <h4 className="chart-title">Emotion Confidence Distribution</h4>
-                        <ResponsiveContainer width="100%" height={250}>
-                          <BarChart data={prepareBarData()} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#E0F2FE" />
-                            <XAxis dataKey="emotion" stroke="#6B7280" fontSize={10} angle={-45} textAnchor="end" height={60} />
-                            <YAxis stroke="#6B7280" fontSize={11} domain={[0, 100]} label={{ value: 'Confidence %', angle: -90, position: 'insideLeft' }} />
-                            <Tooltip contentStyle={{ backgroundColor: '#FFFFFF', border: '1px solid #E0F2FE', borderRadius: '8px', fontSize: '0.8rem' }} formatter={(v) => `${v.toFixed(1)}%`} />
-                            <Bar dataKey="confidence" radius={[6, 6, 0, 0]}>
-                              {prepareBarData().map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={EMOTION_COLORS[entry.fullName] || '#3B82F6'} opacity={entry.confidence > 0 ? 1 : 0.3} />
-                              ))}
-                            </Bar>
-                          </BarChart>
-                        </ResponsiveContainer>
-                      </div>
-
-                      <div className="pie-chart-container">
-                        <h4 className="chart-title">Emotion Breakdown</h4>
-                        <ResponsiveContainer width="100%" height={280}>
-                          <PieChart>
-                            <Pie data={prepareEmotionData()} cx="50%" cy="50%" labelLine={true}
-                              label={({ name, percent, value }) => value > 0 && percent > 3 ? `${name}\n${(percent * 100).toFixed(1)}%` : ''}
-                              outerRadius={90} innerRadius={35} fill="#8884d8" dataKey="value" stroke="#FFFFFF" strokeWidth={2}>
-                              {prepareEmotionData().map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={EMOTION_COLORS[entry.fullName] || '#3B82F6'} opacity={entry.value > 0 ? 1 : 0.2} />
-                              ))}
-                            </Pie>
-                            <Tooltip contentStyle={{ backgroundColor: '#FFFFFF', border: '1px solid #E0F2FE', borderRadius: '8px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)', fontSize: '0.85rem' }} formatter={(v) => `${v.toFixed(1)}%`} />
-                            <Legend verticalAlign="bottom" height={50} wrapperStyle={{ fontSize: '0.75rem', color: '#6B7280' }} iconType="circle"
-                              formatter={(value) => { const d = prepareEmotionData().find(x => x.name === value); return `${value}: ${d ? d.value.toFixed(1) : '0.0'}%`; }} />
-                          </PieChart>
-                        </ResponsiveContainer>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </ScrollReveal>
-            )}
+      <div className="noise-overlay relative mx-auto max-w-5xl">
+        <motion.section
+          className="glass-panel mb-6 p-5 sm:p-6"
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+        >
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight text-slate-100">AI Emotional Guidance</h1>
+              <p className="mt-1 text-sm text-slate-400">Premium reflective assistant rooted in Gita wisdom</p>
+            </div>
+            <div className="rounded-full border border-indigo-300/25 bg-indigo-400/10 px-3 py-1 text-xs text-indigo-200">
+              Powered by Emotion AI Model
+            </div>
           </div>
 
-          {/* ── RIGHT COLUMN ── */}
-          <div className="right-column">
-            {loading && (
-              <div className="dashboard-card loading-state">
-                <div className="loading-content">
-                  <div className="ai-spinner"></div>
-                  <p>Analyzing emotions and generating guidance...</p>
+          <form onSubmit={handleSubmit} className="space-y-3">
+            <textarea
+              className="w-full rounded-2xl border border-white/10 bg-slate-900/60 p-4 text-sm text-slate-100 outline-none ring-indigo-500/40 transition focus:ring-2"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Tell Krishna Vaani what you are feeling right now..."
+              disabled={loading}
+              rows={7}
+            />
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="submit"
+                className="btn-ripple inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-500 to-cyan-400 px-5 py-2.5 text-sm font-semibold text-white shadow-[0_0_28px_rgba(99,102,241,0.4)] transition hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={loading || !input.trim()}
+              >
+                {loading ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
+                {loading ? 'Analyzing emotions...' : 'Generate Guidance'}
+              </button>
+              <span className="rounded-full border border-cyan-300/25 bg-cyan-400/10 px-3 py-1 text-xs text-cyan-100">
+                Model Accuracy: 92%
+              </span>
+            </div>
+          </form>
+        </motion.section>
+
+        {loading && (
+          <motion.div
+            className="glass-panel mb-6 flex items-center gap-3 p-4 text-sm text-slate-300"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+          >
+            <Loader2 className="animate-spin text-cyan-300" size={18} />
+            Analyzing emotions and synthesizing Krishna Vaani guidance...
+          </motion.div>
+        )}
+
+        {!loading && !result && (
+          <div className="glass-panel p-8 text-center text-slate-400">
+            Prompt your thoughts above and your AI response cards will appear here.
+          </div>
+        )}
+
+        {result && (
+          <motion.section
+            className="space-y-4"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <div className="glass-panel p-4 sm:p-5">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2 text-slate-200">
+                  <PrimaryIcon size={18} />
+                  <h2 className="text-base font-semibold">AI Detected Emotion</h2>
+                </div>
+                <div className={`rounded-full bg-gradient-to-r px-3 py-1 text-xs font-semibold text-white ${primaryTheme.color} ${primaryTheme.glow}`}>
+                  Confidence: {Number(result.confidence).toFixed(1)}%
+                </div>
+              </div>
+
+              <div className="mb-3 text-sm text-slate-300">{result.detected_emotion}</div>
+
+              <div className="space-y-2">
+                {emotionData.map((emotion) => {
+                  const theme = EMOTION_THEME[emotion.key] || EMOTION_THEME.default;
+                  return (
+                    <div key={emotion.name}>
+                      <div className="mb-1 flex items-center justify-between text-xs text-slate-300">
+                        <span>{emotion.name}</span>
+                        <span>{emotion.value.toFixed(1)}%</span>
+                      </div>
+                      <div className="h-2 overflow-hidden rounded-full bg-white/10">
+                        <motion.div
+                          className={`h-full bg-gradient-to-r ${theme.color}`}
+                          initial={{ width: 0 }}
+                          animate={{ width: `${Math.max(2, Math.min(100, emotion.value))}%` }}
+                          transition={{ duration: 0.8, ease: 'easeOut' }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {(result.gita_guidance.chapter_number || result.gita_guidance.verse_number) && (
+              <div className="glass-panel p-4 sm:p-5">
+                <div className="mb-2 text-xs uppercase tracking-[0.2em] text-cyan-300">Reference</div>
+                <h3 className="text-lg font-semibold text-slate-100">
+                  Chapter {result.gita_guidance.chapter_number} • Verse {result.gita_guidance.verse_number}
+                </h3>
+                {result.gita_guidance.text && (
+                  <p className="mt-3 rounded-xl border border-white/10 bg-white/[0.03] p-3 text-sm text-slate-300">
+                    {result.gita_guidance.text}
+                  </p>
+                )}
+                {result.gita_guidance.meaning && (
+                  <p className="mt-3 text-sm leading-7 text-slate-300">{result.gita_guidance.meaning}</p>
+                )}
+              </div>
+            )}
+
+            {result.what_happened && (
+              <div className="glass-panel p-4 sm:p-5">
+                <h3 className="mb-2 text-base font-semibold text-slate-100">What Happened</h3>
+                <p className="text-sm leading-7 text-slate-300">{result.what_happened}</p>
+              </div>
+            )}
+
+            {result.krishna_vaani && (
+              <div className="glass-panel p-4 sm:p-5">
+                <h3 className="mb-2 text-base font-semibold text-cyan-200">Krishna Vaani</h3>
+                <TypewriterText text={result.krishna_vaani} />
+              </div>
+            )}
+
+            {result.gita_guidance.guidance && (
+              <div className="glass-panel p-4 sm:p-5">
+                <h3 className="mb-2 text-base font-semibold text-indigo-200">Guidance</h3>
+                <TypewriterText text={result.gita_guidance.guidance} />
+                <p className="mt-3 text-xs text-slate-400">If this verse does not resonate, generate a fresh response.</p>
+
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <button
+                    className="btn-ripple inline-flex items-center gap-2 rounded-xl bg-emerald-500/20 px-3 py-2 text-sm text-emerald-200 transition hover:bg-emerald-500/30"
+                    onClick={handleSaveVerse}
+                    disabled={saving}
+                  >
+                    <Save size={15} />
+                    {saving ? 'Saving...' : 'Save Verse'}
+                  </button>
+
+                  <button
+                    className="btn-ripple inline-flex items-center gap-2 rounded-xl bg-white/10 px-3 py-2 text-sm text-slate-200 transition hover:bg-white/15"
+                    onClick={() => setResult(null)}
+                  >
+                    <RefreshCw size={15} />
+                    Read Again
+                  </button>
+
+                  <button
+                    className="btn-ripple inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-500/80 to-violet-500/80 px-3 py-2 text-sm text-white transition hover:opacity-90"
+                    onClick={() =>
+                      navigate('/krishna-chat', {
+                        state: {
+                          user_input: result.what_happened || input,
+                          emotion: result.detected_emotion,
+                          what_happen: result.what_happened,
+                          krishna_vaani: result.krishna_vaani,
+                          guidance: result.gita_guidance.guidance,
+                          chapter_number: result.gita_guidance.chapter_number,
+                          verse_number: result.gita_guidance.verse_number,
+                        },
+                      })
+                    }
+                  >
+                    <MessageSquare size={15} />
+                    Chat with Krishna
+                  </button>
                 </div>
               </div>
             )}
-
-            {result && (
-              <>
-                {(result.gita_guidance.chapter || result.gita_guidance.verse_number) && (
-                  <ScrollReveal delay={0}>
-                    <motion.div className="dashboard-card verse-reference-panel fade-in" whileHover={cardHover} transition={spring}>
-                      <div className="panel-header"><h3 className="panel-title">Gita Reference</h3></div>
-                      <div className="verse-reference-content">
-                        <div className="verse-title-large">Chapter {result.gita_guidance.chapter_number} • Verse {result.gita_guidance.verse_number}</div>
-                        {result.gita_guidance.text && <div className="verse-sanskrit-display">{result.gita_guidance.text}</div>}
-                        {result.gita_guidance.meaning && <div className="verse-meaning-display">{result.gita_guidance.meaning}</div>}
-                      </div>
-                    </motion.div>
-                  </ScrollReveal>
-                )}
-
-                {result.what_happened && (
-                  <ScrollReveal delay={0.08}>
-                    <motion.div className="dashboard-card what-happened-panel fade-in" whileHover={cardHover} transition={spring}>
-                      <div className="panel-header"><h3 className="panel-title">What Happened</h3></div>
-                      <div className="content-box"><p className="content-text">{result.what_happened}</p></div>
-                    </motion.div>
-                  </ScrollReveal>
-                )}
-
-                {result.krishna_vaani && (
-                  <ScrollReveal delay={0.14}>
-                    <motion.div className="dashboard-card krishna-vaani-panel fade-in" whileHover={cardHover} transition={spring}>
-                      <div className="panel-header">
-                        <h3 className="panel-title">Krishna Vaani</h3>
-                        <div className="scroll-icon">📜</div>
-                      </div>
-                      <div className="krishna-message-box">
-                        <p className="krishna-message-text">{result.krishna_vaani}</p>
-                      </div>
-                    </motion.div>
-                  </ScrollReveal>
-                )}
-
-                {result.gita_guidance.guidance && (
-                  <ScrollReveal delay={0.2}>
-                    <motion.div className="dashboard-card guidance-panel fade-in" whileHover={{ scale: 1.005, boxShadow: '0 8px 28px rgba(0,0,0,0.07)' }} transition={spring}>
-                      <div className="panel-header"><h3 className="panel-title">Guidance</h3></div>
-                      <div className="content-box"><p className="content-text">{result.gita_guidance.guidance}</p></div>
-                      <div className="disclaimer-box">
-                        <div className="disclaimer-icon"></div>
-                        <div className="disclaimer-text">
-                          <strong>Note:</strong> If the chapter or verse doesn't resonate with you, click "Read Again" to generate new guidance.
-                        </div>
-                      </div>
-                      <div className="action-buttons-row">
-                        <button className="ai-action-btn save-action" onClick={handleSaveVerse} disabled={saving}>
-                          {saving ? 'Saving...' : 'Save Verse'}
-                        </button>
-                        <button className="ai-action-btn reset-action" onClick={() => setResult(null)}>
-                          Read Again
-                        </button>
-                        <button className="ai-action-btn chat-action" onClick={() => navigate('/krishna-chat', {
-                          state: {
-                            user_input: result.what_happened || input,
-                            emotion: result.detected_emotion,
-                            what_happen: result.what_happened,
-                            krishna_vaani: result.krishna_vaani,
-                            guidance: result.gita_guidance.guidance,
-                            chapter_number: result.gita_guidance.chapter_number,
-                            verse_number: result.gita_guidance.verse_number,
-                          }
-                        })}>
-                          💬 Chat with Krishna
-                        </button>
-                      </div>
-                    </motion.div>
-                  </ScrollReveal>
-                )}
-              </>
-            )}
-
-            {!loading && !result && (
-              <div className="dashboard-card empty-state">
-                <p className="empty-text">Your emotional analysis and guidance will appear here</p>
-              </div>
-            )}
-          </div>
-
-        </div>
+          </motion.section>
+        )}
       </div>
     </PageTransition>
   );

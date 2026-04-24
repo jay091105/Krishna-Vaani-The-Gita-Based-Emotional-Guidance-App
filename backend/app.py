@@ -537,6 +537,7 @@ def guidance():
         return jsonify({"error": "input is required"}), 400
 
     emotion, confidence, breakdown = _detect_emotion(user_input)
+
     verse = _verse_for_emotion(emotion)
     krishna_vaani = _krishna_message(emotion, user_input)
 
@@ -679,13 +680,21 @@ def rag_chat():
     if not message:
         return jsonify({"error": "message is required"}), 400
 
+    selected_emotion = _safe_text(payload.get("selected_emotion"))
     context      = payload.get("context") or {}
     chat_history = payload.get("chat_history") or []
 
-    # Resolve emotion from context or re-detect from message
-    emotion = _safe_text(context.get("emotion") or context.get("detected_emotion"))
-    if not emotion:
-        emotion, _, _ = _detect_emotion(message)
+    # Chat supports explicit user selection; otherwise use context or auto-detect.
+    if selected_emotion in EMOTIONS:
+        emotion = selected_emotion
+        emotion_source = "manual"
+    else:
+        emotion = _safe_text(context.get("emotion") or context.get("detected_emotion"))
+        if emotion:
+            emotion_source = "context"
+        else:
+            emotion, _, _ = _detect_emotion(message)
+            emotion_source = "auto"
 
     try:
         # 1. Retrieve relevant Gita verses from MongoDB
@@ -693,7 +702,7 @@ def rag_chat():
             emotion=emotion,
             message=message,
             context=context,
-            top_k=4,
+            top_k=2,
         )
 
         # 2. Generate Krishna-style response
@@ -721,6 +730,8 @@ def rag_chat():
             "response":         response_text,
             "verse_references": verse_refs,
             "emotion":          emotion,
+            "selected_emotion": selected_emotion if selected_emotion in EMOTIONS else "",
+            "emotion_source":   emotion_source,
             "timestamp":        datetime.now(timezone.utc).isoformat(),
         })
 

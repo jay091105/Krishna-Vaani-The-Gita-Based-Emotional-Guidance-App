@@ -1,6 +1,7 @@
 .App {
   min-height: 100vh;
   display: flex;
+  flex-direction: column;
 }
 
 .page-content {
@@ -18,26 +19,27 @@
 }
 
 .navbar {
-  background: linear-gradient(180deg, #0F172A 0%, #1E293B 100%);
-  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.2);
-  border-right: 1px solid #334155;
-  width: 220px;
-  min-height: 100vh;
+  background: linear-gradient(90deg, #0F172A 0%, #1E293B 100%);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  border-bottom: 1px solid #334155;
+  width: 100%;
+  min-height: auto;
   position: sticky;
   top: 0;
-  height: 100vh;
+  height: auto;
   display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  padding: 1.5rem 0;
+  flex-direction: row;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
   z-index: 1000;
   flex-shrink: 0;
 }
 
 .nav-logo-wrap {
-  padding: 0 1.25rem 1.5rem;
-  border-bottom: 1px solid #334155;
-  margin-bottom: 1rem;
+  padding: 0;
+  border-bottom: none;
+  margin-bottom: 0;
 }
 
 .nav-container {
@@ -60,7 +62,7 @@
 }
 
 .nav-logo::before {
-  content: '🕉';
+  content: 'AI';
   font-size: 1.1rem;
   opacity: 0.8;
 }
@@ -71,16 +73,19 @@
 
 .nav-links {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  align-items: center;
+  flex-wrap: wrap;
   gap: 0.25rem;
   flex: 1;
-  padding: 0 0.75rem;
+  padding: 0;
 }
 
 .nav-controls {
-  padding: 1rem 1.25rem 0;
-  border-top: 1px solid #334155;
-  margin-top: auto;
+  padding: 0;
+  border-top: none;
+  margin-top: 0;
+  margin-left: auto;
 }
 
 .nav-toggle-btn {
@@ -95,7 +100,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 100%;
+  width: auto;
 }
 
 .nav-toggle-btn:hover {
