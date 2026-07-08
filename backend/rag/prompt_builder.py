@@ -1,5 +1,5 @@
 """
-rag.prompt_builder — Builds system + user messages for the Ollama LLM call.
+rag.prompt_builder — Builds system + user messages for the LLM call.
 
 Public API
 ----------

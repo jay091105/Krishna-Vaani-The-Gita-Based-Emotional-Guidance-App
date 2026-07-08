@@ -149,13 +149,15 @@ function GuidancePage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!input.trim()) return;
+    console.log('Submitting guidance request to', API_URL, 'input=', input);
     setLoading(true);
     setResult(null);
     try {
       const response = await axios.post(`${API_URL}/api/guidance`, { input });
+      console.log('Guidance response', response.data);
       setResult(response.data);
     } catch (error) {
-      console.error('Error getting guidance:', error);
+      console.error('Error getting guidance:', error?.response?.data || error.message || error);
       alert('Error getting guidance. Please try again.');
     } finally {
       setLoading(false);

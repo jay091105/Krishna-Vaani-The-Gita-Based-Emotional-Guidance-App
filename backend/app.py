@@ -7,6 +7,7 @@ import threading
 import uuid
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta, timezone
+from functools import wraps
 from pathlib import Path
 
 from flask import Flask, jsonify, request
@@ -35,6 +36,7 @@ CORS(app)
 
 _INITIALIZATION_LOCK = threading.Lock()
 _INITIALIZED = False
+_MONGO_AVAILABLE = False
 
 # ── Load DistilBERT emotion model ──────────────────────────────────────────────
 _EMOTION_MODEL = None
@@ -127,6 +129,27 @@ def _initialize_app_data() -> None:
         ensure_indexes()
         ensure_gita_verses_loaded()
         _INITIALIZED = True
+
+
+def _mongo_unavailable_response():
+    return jsonify(
+        {
+            "error": (
+                "MongoDB is unavailable. Check backend/.env MONGO_URI and make sure the Atlas host "
+                "is reachable, or start a local MongoDB instance."
+            )
+        }
+    ), 503
+
+
+def _requires_mongo(route_function):
+    @wraps(route_function)
+    def wrapped(*args, **kwargs):
+        if not _MONGO_AVAILABLE:
+            return _mongo_unavailable_response()
+        return route_function(*args, **kwargs)
+
+    return wrapped
 
 
 def _format_gita_verse(document: dict, *, index: int | None = None) -> dict:
@@ -360,26 +383,42 @@ def _detect_emotion(text: str) -> tuple[str, float, dict[str, float]]:
                 probs = [probs]
 
             # Map to emotion names
-            breakdown: dict[str, float] = {}
+            raw_breakdown: dict[str, float] = {}
             for idx, prob in enumerate(probs):
                 emotion_name = _LABEL_MAP.get(idx)
                 if emotion_name:
-                    breakdown[emotion_name] = round(prob * 100, 2)
+                    raw_breakdown[emotion_name] = round(prob * 100, 4)
 
             # Fill any missing emotions with 0
             for e in EMOTIONS:
-                breakdown.setdefault(e, 0.0)
+                raw_breakdown.setdefault(e, 0.0)
 
             # Primary = highest probability
-            primary = max(breakdown, key=breakdown.get)
-            confidence = min(95.0, breakdown[primary])
+            primary = max(raw_breakdown, key=raw_breakdown.get)
+            confidence = min(95.0, raw_breakdown[primary])
 
             # Fallback if model is uncertain (all probs very low)
             if confidence < 20.0:
                 logger.debug("Model confidence too low (%.1f%%), using keyword fallback", confidence)
                 return _detect_emotion_keywords(text.lower())
 
-            logger.debug("DistilBERT detected: %s (%.1f%%)", primary, confidence)
+            # Normalize breakdown for UI display so percentages are relative and easier to read
+            total_raw = sum(raw_breakdown.values())
+            if total_raw > 0:
+                breakdown = {
+                    emotion_name: round((score / total_raw) * 100, 2)
+                    for emotion_name, score in raw_breakdown.items()
+                }
+            else:
+                breakdown = {e: 0.0 for e in EMOTIONS}
+
+            logger.debug(
+                "DistilBERT detected: %s (%.1f%%), raw_scores=%s, normalized_breakdown=%s",
+                primary,
+                confidence,
+                raw_breakdown,
+                breakdown,
+            )
             return primary, round(confidence, 2), breakdown
 
         except Exception as exc:
@@ -439,8 +478,8 @@ def _verse_for_emotion(emotion: str, user_input: str = "") -> dict:
     return _format_gita_verse(selected)
 
 
-def _krishna_message(emotion: str, user_input: str) -> str:
-    verse = _verse_for_emotion(emotion, user_input)
+def _krishna_message(emotion: str, user_input: str, verse: dict | None = None) -> str:
+    verse = verse or _verse_for_emotion(emotion, user_input)
     krishna_vani = _safe_text(verse.get("krishna_vaani") or verse.get("KrishnaVani"))
     guidance = _safe_text(verse.get("guidance") or verse.get("Guidance"))
 
@@ -526,20 +565,27 @@ def index():
 
 @app.get("/api/health")
 def health():
-    return jsonify({"status": "healthy"})
+    app.logger.info("Endpoint hit: /api/health")
+    return jsonify({"status": "healthy", "mongo_available": _MONGO_AVAILABLE})
 
 
 @app.post("/api/guidance")
+@_requires_mongo
 def guidance():
     payload = request.get_json(silent=True) or {}
     user_input = _safe_text(payload.get("input"))
     if not user_input:
+        app.logger.warning("Guidance request missing input")
         return jsonify({"error": "input is required"}), 400
 
     emotion, confidence, breakdown = _detect_emotion(user_input)
+    app.logger.info(
+        "Guidance request: input=%s emotion=%s confidence=%.1f",
+        user_input[:80], emotion, confidence,
+    )
 
-    verse = _verse_for_emotion(emotion)
-    krishna_vaani = _krishna_message(emotion, user_input)
+    verse = _verse_for_emotion(emotion, user_input)
+    krishna_vaani = _krishna_message(emotion, user_input, verse=verse)
 
     try:
         stored_document = _insert_document(
@@ -560,23 +606,27 @@ def guidance():
         app.logger.exception("Failed to store guidance submission in MongoDB")
         return jsonify({"error": f"Failed to store user input: {exc}"}), 500
 
-    return jsonify(
-        {
-            "user_input": user_input,
-            "detected_emotion": emotion,
-            "confidence": confidence,
-            "emotion_breakdown": breakdown,
-            "gita_guidance": verse,
-            "krishna_vaani": krishna_vaani,
-            "what_happened": user_input,
-            "stored_id": stored_document.get("id"),
-        }
-    )
+    response_payload = {
+        "user_input": user_input,
+        "detected_emotion": emotion,
+        "confidence": confidence,
+        "emotion_breakdown": breakdown,
+        "gita_guidance": verse,
+        "krishna_vaani": krishna_vaani,
+        "what_happened": user_input,
+        "stored_id": stored_document.get("id"),
+    }
+
+    app.logger.info("Guidance response ready, stored_id=%s", stored_document.get("id"))
+    app.logger.info("Guidance payload: %s", response_payload)
+    return jsonify(response_payload)
 
 
 @app.post("/api/save-verse")
+@_requires_mongo
 def save_verse():
     payload = request.get_json(silent=True) or {}
+    app.logger.info("Endpoint hit: /api/save-verse payload=%s", {k: v for k, v in payload.items() if k not in ['text', 'meaning', 'guidance']})
     verse = dict(payload)
     verse["doc_type"] = "saved_verse"
     verse.setdefault("id", str(uuid.uuid4()))
@@ -591,7 +641,9 @@ def save_verse():
 
 
 @app.get("/api/saved-verses")
+@_requires_mongo
 def saved_verses():
+    app.logger.info("Endpoint hit: /api/saved-verses")
     try:
         verses = _fetch_documents(get_saved_verses_collection(), {"doc_type": "saved_verse"})
     except PyMongoError as exc:
@@ -602,7 +654,9 @@ def saved_verses():
 
 
 @app.delete("/api/saved-verse/<verse_id>")
+@_requires_mongo
 def delete_saved_verse(verse_id: str):
+    app.logger.info("Endpoint hit: /api/saved-verse/%s", verse_id)
     try:
         result = get_saved_verses_collection().delete_one({"doc_type": "saved_verse", "id": verse_id})
     except PyMongoError as exc:
@@ -613,9 +667,12 @@ def delete_saved_verse(verse_id: str):
 
 
 @app.get("/api/emotion-history")
+@_requires_mongo
 def emotion_history():
+    days_param = request.args.get("days", 7)
+    app.logger.info("Endpoint hit: /api/emotion-history days=%s", days_param)
     try:
-        days = int(request.args.get("days", 7))
+        days = int(days_param)
     except (TypeError, ValueError):
         return jsonify({"error": "days must be a valid number"}), 400
 
@@ -629,9 +686,12 @@ def emotion_history():
 
 
 @app.get("/api/emotion-stats")
+@_requires_mongo
 def emotion_stats():
+    days_param = request.args.get("days", 7)
+    app.logger.info("Endpoint hit: /api/emotion-stats days=%s", days_param)
     try:
-        days = int(request.args.get("days", 7))
+        days = int(days_param)
     except (TypeError, ValueError):
         return jsonify({"error": "days must be a valid number"}), 400
 
@@ -643,13 +703,17 @@ def emotion_stats():
 
 
 @app.get("/api/gita-chapters")
+@_requires_mongo
 def gita_chapters():
+    app.logger.info("Endpoint hit: /api/gita-chapters")
     return jsonify({"chapters": _load_gita_chapters(), "reading_progress": _load_reading_progress()})
 
 
 @app.post("/api/update-reading-progress")
+@_requires_mongo
 def update_reading_progress():
     payload = request.get_json(silent=True) or {}
+    app.logger.info("Endpoint hit: /api/update-reading-progress payload=%s", {"chapter": payload.get("chapter"), "verse": payload.get("verse")})
     chapter = payload.get("chapter")
     verse = payload.get("verse")
     if chapter is None or verse is None:
@@ -674,8 +738,10 @@ def update_reading_progress():
 
 
 @app.post("/api/rag-chat")
+@_requires_mongo
 def rag_chat():
     payload = request.get_json(silent=True) or {}
+    app.logger.info("Endpoint hit: /api/rag-chat selected_emotion=%s context_emotion=%s", payload.get("selected_emotion"), payload.get("context", {}).get("emotion"))
     message = _safe_text(payload.get("message"))
     if not message:
         return jsonify({"error": "message is required"}), 400
@@ -744,12 +810,17 @@ def rag_chat():
 
 
 @app.post("/api/update-progress")
+@_requires_mongo
 def update_progress_alias():
     return update_reading_progress()
 
 
 
 if __name__ == "__main__":
-    _initialize_app_data()
-    verify_mongo_connection()
+    try:
+        _initialize_app_data()
+        _MONGO_AVAILABLE = verify_mongo_connection()
+    except Exception as exc:
+        _MONGO_AVAILABLE = False
+        app.logger.warning("MongoDB startup check failed; running in limited mode: %s", exc)
     app.run(host="0.0.0.0", port=5000, debug=False)

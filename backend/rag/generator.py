@@ -1,5 +1,5 @@
 """
-rag.generator — Krishna-style response generation via Ollama.
+rag.generator — Krishna-style response generation via NVIDIA/OpenAI-compatible LLM.
 
 Public API
 ----------
@@ -8,18 +8,36 @@ generate_krishna_response(message, emotion, context, retrieved_verses, chat_hist
 from __future__ import annotations
 
 import logging
+import os
 import random
 
-import ollama
-from ollama import ResponseError
+try:
+    from openai import OpenAI, OpenAIError
+except ImportError:
+    OpenAI = None
+    OpenAIError = Exception
 
 from rag.prompt_builder import build_messages
 
 logger = logging.getLogger(__name__)
 
-OLLAMA_MODEL   = "gemma:2b"
-OLLAMA_TIMEOUT = 60          # seconds — CPU inference can be slow
-_OLLAMA_CLIENT = ollama.Client(timeout=OLLAMA_TIMEOUT)
+NVIDIA_API_KEY = os.getenv("NVIDIA_API_KEY") or os.getenv("OPENAI_API_KEY") or ""
+NVIDIA_API_BASE_URL = os.getenv("NVIDIA_API_BASE_URL", "https://integrate.api.nvidia.com/v1")
+NVIDIA_MODEL = os.getenv("NVIDIA_MODEL", "openai/gpt-oss-20b")
+NVIDIA_TIMEOUT = int(os.getenv("NVIDIA_TIMEOUT", "60"))
+
+_OPENAI_CLIENT = None
+if OpenAI is not None and NVIDIA_API_KEY:
+    _OPENAI_CLIENT = OpenAI(
+        api_key=NVIDIA_API_KEY,
+        base_url=NVIDIA_API_BASE_URL,
+        timeout=NVIDIA_TIMEOUT,
+    )
+else:
+    if OpenAI is None:
+        logger.warning("OpenAI package not installed; NVIDIA model client unavailable")
+    elif not NVIDIA_API_KEY:
+        logger.warning("NVIDIA_API_KEY / OPENAI_API_KEY not configured; NVIDIA model client unavailable")
 
 # ── Fallback templates (used when Ollama is unavailable) ──────────────────────
 
@@ -125,10 +143,10 @@ def generate_krishna_response(
     chat_history: list[dict],
 ) -> str:
     """
-    Generate a Krishna-style response using the configured Ollama model.
+    Generate a Krishna-style response using the configured NVIDIA/OpenAI model.
 
-    Falls back to the template-driven response if Ollama is not running
-    or returns an error, so the app always works even without Ollama.
+    Falls back to the template-driven response if the NVIDIA/OpenAI call
+    fails, so the app always works even without an external LLM.
 
     Parameters
     ----------
@@ -145,25 +163,31 @@ def generate_krishna_response(
         chat_history=chat_history,
     )
 
+    if _OPENAI_CLIENT is None:
+        logger.warning("NVIDIA/OpenAI client not configured — using fallback")
+        return _fallback_response(message, emotion, context, retrieved_verses)
+
     try:
-        logger.info("Calling Ollama model=%s", OLLAMA_MODEL)
-        response = _OLLAMA_CLIENT.chat(
-            model=OLLAMA_MODEL,
+        logger.info("Calling NVIDIA model=%s base_url=%s", NVIDIA_MODEL, NVIDIA_API_BASE_URL)
+        response = _OPENAI_CLIENT.chat.completions.create(
+            model=NVIDIA_MODEL,
             messages=messages,
-            options={
-                "temperature": 0.6,
-                "top_p": 0.9,
-                "num_predict": 96,    # aggressive cap for faster response on CPU
-                "num_ctx": 1024,
-            },
+            temperature=0.6,
+            top_p=0.9,
+            max_tokens=512,
+            stream=False,
         )
-        text = response["message"]["content"].strip()
-        logger.info("Ollama response received: %d chars", len(text))
+        raw_choice = response.choices[0]
+        text = getattr(raw_choice.message, "content", None)
+        if text is None:
+            text = raw_choice["message"]["content"]
+        text = text.strip()
+        logger.info("NVIDIA response received: %d chars", len(text))
         return text
 
-    except ResponseError as exc:
-        logger.warning("Ollama ResponseError (model=%s): %s — using fallback", OLLAMA_MODEL, exc)
+    except OpenAIError as exc:
+        logger.warning("NVIDIA/OpenAI response error (model=%s): %s — using fallback", NVIDIA_MODEL, exc)
     except Exception as exc:
-        logger.warning("Ollama unavailable (%s) — using fallback", exc)
+        logger.warning("NVIDIA/OpenAI unavailable (%s) — using fallback", exc)
 
     return _fallback_response(message, emotion, context, retrieved_verses)
